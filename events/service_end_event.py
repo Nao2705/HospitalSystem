@@ -6,9 +6,7 @@ if TYPE_CHECKING:
 
 
 class ServiceEndEvent(Event):
-    """
-    Событие окончания обслуживания пациента.
-    """
+    """Событие окончания обслуживания пациента."""
 
     def __init__(self, time: float, doctor_id: int, patient_id: int):
         super().__init__(time)

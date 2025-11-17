@@ -6,9 +6,7 @@ if TYPE_CHECKING:
 
 
 class PatientArrivalEvent(Event):
-    """
-    Событие прибытия нового пациента.
-    """
+    """Событие прибытия нового пациента."""
 
     def __init__(self, time: float, patient_id: int, source_id: int):
         super().__init__(time)
@@ -17,8 +15,6 @@ class PatientArrivalEvent(Event):
 
     def process_event(self, core: 'SimulationCore') -> None:
         """Обрабатывает прибытие пациента"""
-        print(f"Время {self.time:.2f}: Обработка прибытия пациента {self.patient_id} из источника {self.source_id}")
-
         # Создаем пациента с использованием общего NameGenerator
         from entities.patient import Patient
         from utils.name_generator import NameGenerator
@@ -30,16 +26,19 @@ class PatientArrivalEvent(Event):
             name=NameGenerator.generate_patient_name()
         )
 
+        if not core.step_by_step:
+            print(f"Время {self.time:.2f}: Обработка прибытия пациента - {patient}")
+
         # Регистрируем в статистике
         core.statistics.record_patient_arrival(patient)
 
         # Передаем диспетчеру
         success = core.dispatcher.on_patient_arrival(patient, self.time)
 
-        if not success:
+        if not success and not core.step_by_step:
             print(f"Пациенту {patient.name} отказано в обслуживании")
 
-        # Планируем следующее прибытие (бесконечный источник)
+        # Планируем следующее прибытие
         core.schedule_next_arrival()
 
     def __str__(self) -> str:
