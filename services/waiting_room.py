@@ -8,7 +8,7 @@ class WaitingRoom:
 
     def __init__(self, capacity: int):
         self.capacity = capacity
-        self.patients: List[Optional[Patient]] = [None] * capacity
+        self.patients: List[Patient] = []  # Динамический список пациентов
         self.size = 0
 
     def is_full(self) -> bool:
@@ -23,70 +23,68 @@ class WaitingRoom:
         """Возвращает текущее количество пациентов в буфере"""
         return self.size
 
-    def get_queue_info(self) -> List[Optional[Patient]]:
+    def get_queue_info(self) -> List[Patient]:
         """Возвращает информацию об очереди"""
         return self.patients.copy()
 
-    def add_patient(self, patient: Patient) -> bool:
+    def add_patient(self, patient: Patient) -> tuple[bool, Optional[Patient]]:
         """
         Добавляет пациента в буфер по правилу Д1О32
 
         Returns:
-            bool: True если пациент добавлен, False если получен отказ
+            tuple[bool, Optional[Patient]]:
+                - True если пациент добавлен, False если получен отказ
+                - Вытесненный пациент (если был)
         """
         if self.is_full():
-            return self._replace_last_patient(patient)
+            # БУФЕР ПОЛОН - применяем Д1О4 (вытеснение самого свежего)
+            rejected_patient = self._replace_last_patient(patient)
+            return True, rejected_patient  # Новый пациент добавлен, старый вытеснен
         else:
-            return self._add_to_first_free(patient)
+            # Есть свободное место
+            self._add_to_end(patient)
+            return True, None  # Пациент добавлен, вытеснения не было
 
-    def _replace_last_patient(self, patient: Patient) -> bool:
-        """
-        Д1О4 - выбивает последнюю заявку и ставит новую
-
-        Returns:
-            bool: True если замена произошла
-        """
+    def _replace_last_patient(self, patient: Patient) -> Patient:
+        """Выполняет замену самого свежего пациента (Д1О4) и возвращает вытесненного"""
         if self.size == 0:
-            return False
+            raise Exception("Буфер пуст, но пытаемся вытеснить пациента!")
 
-        # Находим самого "свежего" пациента (с максимальным временем прихода)
-        last_index = -1
+        # Находим самого "свежего" пациента (с наибольшим временем прибытия)
+        latest_index = -1
         latest_arrival_time = -1.0
 
-        for i in range(self.capacity):
-            if self.patients[i] is not None:
-                if self.patients[i].arrival_time > latest_arrival_time:
-                    latest_arrival_time = self.patients[i].arrival_time
-                    last_index = i
+        for i, current_patient in enumerate(self.patients):
+            if current_patient.arrival_time > latest_arrival_time:
+                latest_arrival_time = current_patient.arrival_time
+                latest_index = i
 
-        if last_index != -1:
-            # Выбиваем последнего пациента
-            rejected_patient = self.patients[last_index]
-            self.patients[last_index] = patient
+        if latest_index != -1:
+            # Выбиваем самого свежего пациента
+            rejected_patient = self.patients[latest_index]
 
-            print(f"Пациент {rejected_patient.name} выбит из буфера, "
-                  f"{patient.name} занял место {last_index + 1}")
+            # Заменяем его новым пациентом
+            self.patients[latest_index] = patient
 
-            # Возвращаем True - пациент добавлен (хоть и с вытеснением)
-            return True
+            print(f"-- ВЫТЕСНЕНИЕ: Пациент {rejected_patient.name} (прибыл: {rejected_patient.arrival_time:.2f}) "
+                  f"выбит из буфера, {patient.name} (прибыл: {patient.arrival_time:.2f}) занял его место")
 
-        return False
+            return rejected_patient
 
-    def _add_to_first_free(self, patient: Patient) -> bool:
-        """Добавляет пациента в первое свободное место (Д1О32)"""
-        for i in range(self.capacity):
-            if self.patients[i] is None:
-                self.patients[i] = patient
-                self.size += 1
-                print(f"{patient.name} поставлен в буфер на место {i + 1}")
-                return True
-        return False
+        raise Exception("Не удалось найти пациента для вытеснения!")
+
+    def _add_to_end(self, patient: Patient) -> bool:
+        """Добавляет пациента в конец буфера"""
+        self.patients.append(patient)
+        self.size += 1
+        print(f"{patient.name} поставлен в буфер. Теперь в буфере: {self.size}/{self.capacity}")
+        return True
 
     def get_next_patient(self) -> Optional[Patient]:
         """
         Выбирает следующего пациента для обслуживания по приоритету Д2Б4
 
-        Returns:
+        Return:
             Optional[Patient]: Пациент с наивысшим приоритетом или None
         """
         if self.is_empty():
@@ -97,44 +95,34 @@ class WaitingRoom:
         selected_index = -1
         highest_priority = Priority.WITHOUT_APPOINTMENT  # Начинаем с низшего
 
-        for i in range(self.capacity):
-            if self.patients[i] is not None:
-                patient = self.patients[i]
-                # Сравниваем приоритеты (меньшее значение = высший приоритет)
-                if patient.priority.value < highest_priority.value:
-                    highest_priority = patient.priority
-                    selected_patient = patient
-                    selected_index = i
-                # Если приоритеты равны, выбираем того, кто раньше пришел
-                elif (patient.priority == highest_priority and
-                      selected_patient is not None and
-                      patient.arrival_time < selected_patient.arrival_time):
-                    selected_patient = patient
-                    selected_index = i
+        for i, patient in enumerate(self.patients):
+            # Сравниваем приоритеты (меньшее значение = высший приоритет)
+            if patient.priority.value < highest_priority.value:
+                highest_priority = patient.priority
+                selected_patient = patient
+                selected_index = i
+            # Если приоритеты равны, выбираем того, кто раньше пришел
+            elif (patient.priority == highest_priority and
+                  selected_patient is not None and
+                  patient.arrival_time < selected_patient.arrival_time):
+                selected_patient = patient
+                selected_index = i
 
         if selected_patient is not None and selected_index != -1:
-            # Удаляем пациента и сдвигаем очередь
-            self._remove_and_shift(selected_index)
+            # Удаляем пациента из буфера
+            self._remove_patient(selected_index)
             print(f"Выбран для приема: {selected_patient.name} "
-                  f"(приоритет: {selected_patient.priority})")
+                  f"(приоритет: {str(selected_patient.priority)}, прибыл: {selected_patient.arrival_time:.2f})")
             return selected_patient
 
         return None
 
-    def _remove_and_shift(self, index: int) -> None:
-        """
-        Д1О32 - удаляет пациента и сдвигает остальных
-        """
-        if index < 0 or index >= self.capacity or self.patients[index] is None:
-            return
-
-        # Сдвигаем всех пациентов справа на одну позицию влево
-        for i in range(index, self.capacity - 1):
-            self.patients[i] = self.patients[i + 1]
-
-        # Последнее место становится пустым
-        self.patients[self.capacity - 1] = None
-        self.size -= 1
+    def _remove_patient(self, index: int) -> None:
+        """Удаляет пациента по индексу"""
+        if 0 <= index < len(self.patients):
+            removed_patient = self.patients.pop(index)
+            self.size -= 1
+            print(f"Пациент {removed_patient.name} удален из буфера. Осталось: {self.size}/{self.capacity}")
 
     def get_state_description(self) -> str:
         """Возвращает текстовое описание текущего состояния буфера"""
@@ -142,10 +130,8 @@ class WaitingRoom:
             return "Буфер пуст"
 
         occupied_slots = []
-        for i in range(self.capacity):
-            if self.patients[i] is not None:
-                patient = self.patients[i]
-                occupied_slots.append(f"{i + 1}: {patient.name} ({patient.priority})")
+        for i, patient in enumerate(self.patients):
+            occupied_slots.append(f"{i + 1}: {patient.name} ({patient.priority}, прибыл: {patient.arrival_time:.2f})")
 
         return f"Буфер [{self.size}/{self.capacity}]: " + ", ".join(occupied_slots)
 

@@ -4,10 +4,10 @@ from entities.priority import Priority
 
 @dataclass
 class Patient:
-    id: int
-    source_id: int
-    arrival_time: float
+    id: int # уникальный идентификатор
+    source_id: int # определяет тип пациента
     name: str
+    arrival_time: float
     service_start_time: Optional[float] = None
     service_end_time: Optional[float] = None
     priority: Priority = field(init=False)  # Вычисляется автоматически
@@ -22,4 +22,4 @@ class Patient:
             self.priority = Priority.WITHOUT_APPOINTMENT
 
     def __str__(self):
-        return f"Пациент {self.id}: {self.name} ({self.priority})"
+        return f"Пациент {self.id}: {self.name} ({str(self.priority)})"
